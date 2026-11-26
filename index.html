@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Track NFC review-card leads: filter by borough, open in Maps, copy review links, follow each shop to a sale.">
+<title>Lead Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE work tool for a door-to-door seller
+   IDEA a canvasser's route sheet: every shop is a stop, moved along a pipeline
+   PICTURE the goal meter + pipeline strip in the header, then the stop cards themselves
+   COLOUR deep green ground, white, lime-white, coral for "low rating", amber for "few reviews"
+   TYPE Inter Tight 800 + Inter
+   LAYOUT laptop: green band with title left, goal meter right; filters bar; 2-col cards. phone: stacked, 1-col cards */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0d1714);--ink:light-dark(#10201c,#e8f2ee);--mute:light-dark(#55665f,#9bb0a8);--line:light-dark(#dfe7e3,#24342f);--card:light-dark(#ffffff,#13211d);--band:light-dark(#00463c,#002e27);--lime:#e6f5c8;--coral:#ff6f59;--amber:#f2a516;--ok:light-dark(#0a7a4f,#5fd49b)}
+:root[data-theme=light]{color-scheme:light}
+:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+.band{padding-left:max(5vw,16px,env(safe-area-inset-left,0px));padding-right:max(5vw,16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1240px;margin:0 auto}
+header{background:var(--band);color:#fff;margin-top:calc(-1*env(safe-area-inset-top,0px));padding-top:calc(env(safe-area-inset-top,0px) + 32px);padding-bottom:28px}
+.top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:32px;align-items:end}
+h1{font:800 clamp(32px,5vw,48px)/1.05 "Inter Tight",sans-serif;letter-spacing:-.02em;margin:0 0 8px}
+.sub{color:var(--lime);margin:0;max-width:34em}
+.goal{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px 18px}
+.goalrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.big{font:800 clamp(30px,4vw,42px)/1 "Inter Tight",sans-serif;white-space:nowrap}
+.meter{height:14px;background:rgba(255,255,255,.15);border-radius:7px;overflow:hidden;margin:12px 0}
+.meter i{display:block;height:100%;background:var(--lime);border-radius:7px;transition:width .4s}
+.pipe{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.pipe div{background:rgba(255,255,255,.08);border-radius:8px;padding:8px 10px}
+.pipe b{display:block;font:700 22px/1.1 "Inter Tight",sans-serif}
+.pipe span{font-size:13px;color:var(--lime)}
+.goalset{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--lime);margin-top:10px}
+.goalset input{width:5.5em;font:inherit;font-size:16px;padding:2px 6px;border-radius:6px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:12px}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ctrl input,.ctrl select{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+#q{flex:1 1 220px}
+.btn{font:600 15px Inter,sans-serif;padding:10px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;min-height:44px}
+.btn:hover{border-color:var(--ink)}
+.btn.pri{background:var(--band);color:#fff;border-color:var(--band)}
+.file{position:relative;overflow:hidden}
+.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.note{font-size:13px;color:var(--mute);margin:10px 0 0}
+main{padding-block:20px 48px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:10px}
+.card.sold{border-color:var(--ok)}
+.card.no{opacity:.55}
+.head{display:flex;justify-content:space-between;gap:12px;align-items:start}
+.name{font:700 19px/1.2 "Inter Tight",sans-serif;margin:0}
+.addr{font-size:14px;color:var(--mute);margin:2px 0 0}
+.score{text-align:right;white-space:nowrap}
+.score b{font:800 22px/1 "Inter Tight",sans-serif}
+.score small{display:block;font-size:13px;color:var(--mute)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:13px;font-weight:600;padding:3px 9px;border-radius:99px;background:color-mix(in srgb,var(--amber) 22%,transparent)}
+.tag.low{background:color-mix(in srgb,var(--coral) 25%,transparent)}
+.tag.q{background:color-mix(in srgb,var(--ink) 8%,transparent);font-weight:500}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.acts .btn{padding:8px 12px;font-size:14px}
+.row2{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px}
+.row2 select,.row2 input{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.phone{font-size:14px;white-space:nowrap}
+.empty{text-align:center;padding:48px 16px;color:var(--mute);border:2px dashed var(--line);border-radius:12px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px}
+@media(max-width:760px){.top{grid-template-columns:minmax(0,1fr);gap:20px}}
+@media(max-width:420px){.pipe{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+
+<header class="band"><div class="wrap top">
+  <div>
+    <h1>Lead Board</h1>
+    <p class="sub">Load the leads.csv from your script, then work through the shops: open them on Maps, copy the review link for the card, and move each one along.</p>
+  </div>
+  <div class="goal">
+    <div class="goalrow"><span class="big" id="earned">0 $</span><span id="goaltxt" style="color:var(--lime)">of 500 $ goal</span></div>
+    <div class="meter"><i id="meter" style="width:0"></i></div>
+    <div class="pipe" id="pipe"></div>
+    <div class="goalset"><label>Price per card <input id="price" type="number" min="0" value="40"></label><label>Goal <input id="goal" type="number" min="0" value="500"></label></div>
+  </div>
+</div></header>
+
+<div class="bar band"><div class="wrap">
+  <div class="ctrl">
+    <label class="btn pri file">Load leads.csv<input type="file" id="csv" accept=".csv,text/csv"></label>
+    <input id="q" type="search" placeholder="Search name, address, neighbourhood">
+    <select id="fb" aria-label="Borough"><option value="">All boroughs</option></select>
+    <select id="fr"><option value="">All reasons</option><option value="few">Few reviews</option><option value="low">Low rating</option></select>
+    <select id="fs"><option value="">All statuses</option></select>
+    <select id="sort"><option value="reviews">Fewest reviews</option><option value="rating">Lowest rating</option><option value="name">Name A–Z</option></select>
+    <button class="btn" id="copy" type="button">Copy as CSV</button>
+    <button class="btn" id="dl" type="button">Download CSV</button>
+  </div>
+  <p class="note" id="note"></p>
+</div></div>
+
+<main class="band"><div class="wrap"><div class="grid" id="list"></div></div></main>
+
+<script>
+{
+const STAT=[['todo','To visit'],['visited','Visited'],['interested','Interested'],['sold','Sold'],['no','Not interested']];
+const SAMPLE=`name,address,rating,reviews,reason,phone,website,maps_link,review_link,search
+Barbier Le Coin,1234 rue Wellington Verdun,4.6,18,few reviews,(514) 555-0142,,,,barbier Verdun Montréal
+Café Petit Matin,88 rue Jarry E Villeray,4.4,37,few reviews,(514) 555-0178,,,,café Villeray Montréal
+Salon Éclat,410 rue Notre-Dame O Saint-Henri,3.7,62,"few reviews, low rating",(514) 555-0119,,,,salon de coiffure Saint-Henri Montréal
+Boulangerie des Érables,2201 boul. Rosemont,4.8,24,few reviews,(514) 555-0163,,,,boulangerie Rosemont Montréal
+Ongles Lumière,5560 rue Sherbrooke E,3.5,120,low rating,(514) 555-0101,,,,salon de manucure Hochelaga Montréal
+Resto Chez Lina,3020 rue Masson,4.2,51,few reviews,(514) 555-0155,,,,restaurant Rosemont Montréal`;
+let rows=[],sample=true,st={};
+const BORO=[['Ahuntsic-Cartierville',['ahuntsic','cartierville']],['Anjou',['anjou']],['Côte-des-Neiges–NDG',['cote-des-neiges','notre-dame-de-grace','ndg']],['Lachine',['lachine']],['LaSalle',['lasalle']],['Plateau-Mont-Royal',['plateau','mile end','mile-end']],['Sud-Ouest',['sud-ouest','saint-henri','st-henri','pointe-saint-charles','griffintown','petite-bourgogne']],['L\'Île-Bizard–Sainte-Geneviève',['ile-bizard','sainte-genevieve']],['Mercier–Hochelaga-Maisonneuve',['hochelaga','mercier']],['Montréal-Nord',['montreal-nord']],['Outremont',['outremont']],['Pierrefonds-Roxboro',['pierrefonds','roxboro']],['RDP–Pointe-aux-Trembles',['riviere-des-prairies','pointe-aux-trembles']],['Rosemont–La Petite-Patrie',['rosemont','petite-patrie']],['Saint-Laurent',['saint-laurent']],['Saint-Léonard',['saint-leonard']],['Verdun',['verdun','ile-des-soeurs']],['Ville-Marie',['ville-marie','centre-ville','downtown','vieux-montreal','old montreal']],['Villeray–Saint-Michel–Parc-Extension',['villeray','saint-michel','parc-extension','parc-ex']]];
+const plain=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+function findBoro(t){t=plain(t);for(const[b,keys]of BORO)if(keys.some(k=>t.includes(k)))return b;return''}
+function boroOf(r){return findBoro(r.search)||findBoro(r.address.replace(/\b(rue|boul\.?|boulevard|av\.?|avenue|ch\.?|chemin|place|pl\.?)\s+[^,]+/gi,''))||'Unknown'}
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const load=()=>{try{st=JSON.parse(localStorage.getItem('leadboard')||'{}')}catch(e){st={}}};
+const save=()=>{try{localStorage.setItem('leadboard',JSON.stringify(st))}catch(e){}};
+function parse(t){t=t.replace(/^﻿/,'');const out=[];let row=[],f='',q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c=='"')q=true;else if(c==','){row.push(f);f=''}
+    else if(c=='\n'||c=='\r'){if(c=='\r'&&t[i+1]=='\n')i++;row.push(f);f='';if(row.some(x=>x!==''))out.push(row);row=[]}
+    else f+=c}
+  row.push(f);if(row.some(x=>x!==''))out.push(row);
+  if(!out.length)return[];const h=out[0].map(x=>x.trim().toLowerCase());
+  return out.slice(1).map(r=>Object.fromEntries(h.map((k,i)=>[k,(r[i]??'').trim()])))}
+function norm(r){const g=(...k)=>{for(const x of k)if(r[x])return r[x];return''};
+  const o={name:g('name','nom'),address:g('address','adresse'),rating:parseFloat(g('rating','note'))||0,reviews:parseInt(g('reviews','userratingcount','avis'))||0,
+    reason:g('reason','raison'),phone:g('phone','telephone'),website:g('website'),maps:g('maps_link','googlemapsuri','google_maps_url','maps_url','maps'),review:g('review_link'),search:g('search','query')};
+  if(!o.maps){const u=Object.values(r).find(x=>/^https?:\/\/(www\.)?(maps\.google\.|google\.[a-z.]+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(x));if(u)o.maps=u}
+  o.boro=g('borough','arrondissement')||boroOf(o);
+  o.id=o.review||(o.name+'|'+o.address);return o}
+function setRows(list,isSample){rows=list.map(norm).filter(r=>r.name);sample=isSample;
+  const c={};rows.forEach(r=>c[r.boro]=(c[r.boro]||0)+1);
+  const keys=Object.keys(c).sort((a,b)=>a=='Unknown'?1:b=='Unknown'?-1:a.localeCompare(b,'fr'));
+  $('fb').innerHTML='<option value="">All boroughs ('+rows.length+')</option>'+keys.map(k=>`<option value="${esc(k)}">${esc(k)} (${c[k]})</option>`).join('');
+  render()}
+function status(r){return(st[r.id]||{}).s||'todo'}
+function render(){
+  const q=$('q').value.toLowerCase(),fb=$('fb').value,fr=$('fr').value,fs=$('fs').value,so=$('sort').value;
+  let v=rows.filter(r=>{const rs=r.reason.toLowerCase();
+    if(q&&!(r.name+' '+r.address+' '+r.search).toLowerCase().includes(q))return false;
+    if(fb&&r.boro!=fb)return false;
+    if(fr=='few'&&!rs.includes('few'))return false;
+    if(fr=='low'&&!rs.includes('low'))return false;
+    if(fs&&status(r)!=fs)return false;return true});
+  v.sort((a,b)=>so=='rating'?(a.rating||9)-(b.rating||9):so=='name'?a.name.localeCompare(b.name,'fr'):a.reviews-b.reviews);
+  $('list').innerHTML=v.length?v.map(card).join(''):`<div class="empty">${rows.length?'No shop matches these filters.':'Your CSV had no leads. Fix the API key, rerun leads.py, then load the new file here.'}</div>`;
+  $('note').textContent=(sample?'Showing sample shops (fake data). ':'')+`${v.length} of ${rows.length} leads shown. Statuses and notes are saved in this browser.`;
+  stats()}
+function card(r){const s=status(r),n=(st[r.id]||{}).n||'',rs=r.reason.toLowerCase();
+  const map=r.maps;
+  return `<article class="card ${s=='sold'?'sold':s=='no'?'no':''}" data-id="${esc(r.id)}">
+  <div class="head"><div><h2 class="name">${esc(r.name)}</h2><p class="addr">${esc(r.address)}</p></div>
+  <div class="score"><b>${r.rating?esc(r.rating.toFixed(1))+' ★':'–'}</b><small>${esc(r.reviews)} reviews</small></div></div>
+  <div class="tags"><span class="tag q">${esc(r.boro)}</span>${rs.includes('few')?'<span class="tag">Few reviews</span>':''}${rs.includes('low')?'<span class="tag low">Low rating</span>':''}</div>
+  <div class="acts">${map?`<a class="btn" href="${esc(map)}" target="_blank" rel="noopener">Open in Maps</a>`:''}
+  ${r.review?`<button class="btn" type="button" data-copy="${esc(r.review)}">Copy review link</button>`:''}
+  ${r.website?`<a class="btn" href="${esc(r.website)}" target="_blank" rel="noopener">Website</a>`:''}
+  ${r.phone?`<span class="btn phone">${esc(r.phone)}</span>`:''}</div>
+  <div class="row2"><select data-s aria-label="Status">${STAT.map(([k,l])=>`<option value="${k}"${k==s?' selected':''}>${l}</option>`).join('')}</select>
+  <input data-n placeholder="Note: owner's name, best time, objection…" value="${esc(n)}" aria-label="Note"></div></article>`}
+function stats(){const c={};STAT.forEach(([k])=>c[k]=0);rows.forEach(r=>c[status(r)]++);
+  const price=+$('price').value||0,goal=+$('goal').value||1,earned=c.sold*price;
+  $('earned').textContent=earned.toLocaleString('fr-CA')+' $';
+  $('goaltxt').textContent=`of ${goal.toLocaleString('fr-CA')} $ goal · ${Math.max(0,Math.ceil((goal-earned)/(price||1)))} cards to go`;
+  $('meter').style.width=Math.min(100,earned/goal*100)+'%';
+  $('pipe').innerHTML=STAT.slice(0,4).map(([k,l])=>`<div><b>${c[k]}</b><span>${l}</span></div>`).join('')}
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),1800)}
+async function copy(txt,msg){try{await navigator.clipboard.writeText(txt);toast(msg)}catch(e){toast('Copy blocked here, select the text manually')}}
+$('fs').innerHTML+=STAT.map(([k,l])=>`<option value="${k}">${l}</option>`).join('');
+['q','fb','fr','fs','sort'].forEach(id=>$(id).addEventListener('input',render));
+['price','goal'].forEach(id=>$(id).addEventListener('input',()=>{try{localStorage.setItem('lb-'+id,$(id).value)}catch(e){}stats()}));
+$('csv').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{setRows(parse(t),false);toast(`${rows.length} leads loaded`)})});
+$('list').addEventListener('click',e=>{const b=e.target.closest('[data-copy]');if(b)copy(b.dataset.copy,'Review link copied, paste it in NFC Tools')});
+$('list').addEventListener('change',e=>{const c=e.target.closest('.card');if(!c)return;const id=c.dataset.id;st[id]=st[id]||{};
+  if(e.target.matches('[data-s]')){st[id].s=e.target.value;save();render()}
+  if(e.target.matches('[data-n]')){st[id].n=e.target.value;save()}});
+$('copy').addEventListener('click',()=>{const h='name,borough,address,rating,reviews,reason,phone,maps_link,review_link,status,note';
+  const q=x=>'"'+String(x??'').replace(/"/g,'""')+'"';
+  copy([h,...rows.map(r=>[r.name,r.boro,r.address,r.rating,r.reviews,r.reason,r.phone,r.maps,r.review,status(r),(st[r.id]||{}).n].map(q).join(','))].join('\n'),'CSV copied, paste it into Excel')});
+function csvText(){const h='name,borough,address,rating,reviews,reason,phone,maps_link,review_link,status,note';const q=x=>'"'+String(x??'').replace(/"/g,'""')+'"';return[h,...rows.map(r=>[r.name,r.boro,r.address,r.rating,r.reviews,r.reason,r.phone,r.maps,r.review,status(r),(st[r.id]||{}).n].map(q).join(','))].join('\n')}
+$('dl').addEventListener('click',()=>{const b=new Blob(['\uFEFF'+csvText()],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='leads-tracked.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
+load();try{['price','goal'].forEach(id=>{const v=localStorage.getItem('lb-'+id);if(v)$(id).value=v})}catch(e){}
+setRows(parse(SAMPLE),true);
+}
+</script>
+</body>
+</html>

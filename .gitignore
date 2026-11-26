@@ -1,0 +1,4 @@
+# Real lead data stays on your computer
+*.csv
+.env
+__pycache__/
